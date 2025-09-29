@@ -1,22 +1,24 @@
-import urllib.request
+﻿
 from pathlib import Path
+import numpy as np
+from torchvision import datasets
 
-# --- Configuration ---
-# Publicly hosted CSV versions of MNIST
-URLS = {
-    "mnist_train.csv": "https://pjreddie.com/media/files/mnist_train.csv",
-    "mnist_test.csv": "https://pjreddie.com/media/files/mnist_test.csv"
-}
-DATA_PATH = Path("data/MNIST_CSV")
+OUT = Path("data/MNIST_CSV")
+OUT.mkdir(parents=True, exist_ok=True)
 
-# --- Script ---
-DATA_PATH.mkdir(parents=True, exist_ok=True)
+def save_csv(ds, path):
 
-for filename, url in URLS.items():
-    filepath = DATA_PATH / filename
-    
-    if not filepath.exists():
-        print(f"Downloading {filename}... (This may take a moment)")
-        urllib.request.urlretrieve(url, filepath)
+    X = ds.data.numpy().reshape(len(ds), -1)
+    y = ds.targets.numpy().reshape(-1, 1)
+    np.savetxt(path, np.hstack([y, X]), fmt="%d", delimiter=",")
+    print(f"Wrote {path}  with shape {y.shape[0]}x785")
+
+for name, is_train in [("mnist_train.csv", True), ("mnist_test.csv", False)]:
+    fp = OUT / name
+    if not fp.exists():
+        ds = datasets.MNIST(root="data/raw_mnist", train=is_train, download=True)
+        save_csv(ds, fp)
+    else:
+        print(f"Found {name}, skipping.")
 
 print("CSV dataset is ready.")

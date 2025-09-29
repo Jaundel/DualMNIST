@@ -23,5 +23,5 @@ Quick project comparing two ways to classify MNIST digits:
 ### NumPy version
 python src_numpy/train.py
 
-### PyTorch version
+### PyTorch verersion
 python src_pytorch/train.py
