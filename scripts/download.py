@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from torchvision import datasets
 
-OUT = Path("data/MNIST_CSV")
+OUT = Path("../data/MNIST_CSV")
 OUT.mkdir(parents=True, exist_ok=True)
 
 def save_csv(ds, path):

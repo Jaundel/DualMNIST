@@ -1,13 +1,15 @@
 import numpy as np
 import pandas as pd
 import time
-import os
+from pathlib import Path
 from network import NeuralNetwork
 
-# Load data directly
+# Load data (robust to current working directory)
 print("Loading data...")
-train_df = pd.read_csv("data/MNIST_CSV/mnist_train.csv")
-test_df = pd.read_csv("data/MNIST_CSV/mnist_test.csv")
+ROOT = Path(__file__).resolve().parents[1]
+CSV_DIR = ROOT / "data" / "MNIST_CSV"
+train_df = pd.read_csv(CSV_DIR / "mnist_train.csv")
+test_df = pd.read_csv(CSV_DIR / "mnist_test.csv")
 
 # Extract and normalize data
 y_train = train_df.iloc[:, 0].values
