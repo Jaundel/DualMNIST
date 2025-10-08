@@ -9,10 +9,13 @@ from network import NeuralNetwork
 # Load data (robust to current working directory)
 print("Loading data...")
 ROOT = Path(__file__).resolve().parents[1]
-MODELS_DIR = ROOT / "models" / "numpy"
+MODELS_ROOT = ROOT / "models"
+MODELS_DIR = MODELS_ROOT / "numpy_models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_PATH = MODELS_DIR / "mnist_numpy.onnx"
 METRICS_PATH = MODELS_DIR / "best_metrics.npz"
+LEGACY_MODELS_DIR = MODELS_ROOT / "numpy"
+LEGACY_METRICS_PATH = LEGACY_MODELS_DIR / "best_metrics.npz"
 CSV_DIR = ROOT / "data" / "MNIST_CSV"
 train_df = pd.read_csv(CSV_DIR / "mnist_train.csv")
 test_df = pd.read_csv(CSV_DIR / "mnist_test.csv")
@@ -64,8 +67,14 @@ m = X_train.shape[1]
 num_batches = m // batch_size
 
 # Track best model (persisted globally)
+stored_metrics = None
 if METRICS_PATH.exists():
     stored_metrics = np.load(METRICS_PATH)
+elif LEGACY_METRICS_PATH.exists():
+    stored_metrics = np.load(LEGACY_METRICS_PATH)
+    print("Loaded legacy numpy best metrics; they will be saved to the new directory on update.")
+
+if stored_metrics is not None:
     best_accuracy = float(stored_metrics.get("best_accuracy", 0.0))
     print(f"Loaded previous global best accuracy: {best_accuracy*100:.2f}%")
 else:
