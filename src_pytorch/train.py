@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from model import MNISTModel
+from model import MNISTCNN
 
 # Load data (robust to current working directory)
 print("Loading data...")
@@ -27,24 +27,22 @@ X_train = train_df.iloc[:, 1:].values.astype(np.float32) / 255.0
 y_test = test_df.iloc[:, 0].values.astype(np.int64)
 X_test = test_df.iloc[:, 1:].values.astype(np.float32) / 255.0
 
-X_train_tensor = torch.from_numpy(X_train)
+IMAGE_SHAPE = (1, 28, 28)
+
+X_train_tensor = torch.from_numpy(X_train.reshape(-1, *IMAGE_SHAPE))
 y_train_tensor = torch.from_numpy(y_train)
-X_test_tensor = torch.from_numpy(X_test)
+X_test_tensor = torch.from_numpy(X_test.reshape(-1, *IMAGE_SHAPE))
 y_test_tensor = torch.from_numpy(y_test)
 
 # Initialize model and training utilities
-hidden_size = 128
 learning_rate = 0.1
 epochs = 10
 batch_size = 64
-input_dim = X_train_tensor.shape[1]
+input_shape = X_train_tensor.shape[1:]
 
 
 def build_model():
-    try:
-        return MNISTModel(hidden_size=hidden_size)
-    except TypeError:
-        return MNISTModel()
+    return MNISTCNN()
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,11 +59,11 @@ train_loader = DataLoader(
 )
 
 
-def save_to_onnx(state_dict, path, input_size):
+def save_to_onnx(state_dict, path, input_shape):
     export_model = build_model()
     export_model.load_state_dict(state_dict)
     export_model.eval()
-    dummy_input = torch.randn(1, input_size)
+    dummy_input = torch.randn(1, *input_shape)
     torch.onnx.export(
         export_model,
         dummy_input,
@@ -142,7 +140,7 @@ for epoch in range(epochs):
     if test_accuracy > best_accuracy:
         best_accuracy = test_accuracy
         best_state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
-        save_to_onnx(best_state, MODEL_PATH, input_dim)
+        save_to_onnx(best_state, MODEL_PATH, input_shape)
         np.savez(METRICS_PATH, best_accuracy=best_accuracy)
         print(f"New global best model saved! (Accuracy: {test_accuracy*100:.2f}%)")
 
