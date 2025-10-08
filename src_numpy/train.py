@@ -2,11 +2,17 @@ import numpy as np
 import pandas as pd
 import time
 from pathlib import Path
+import onnx
+import ndonnx as ndx
 from network import NeuralNetwork
 
 # Load data (robust to current working directory)
 print("Loading data...")
 ROOT = Path(__file__).resolve().parents[1]
+MODELS_DIR = ROOT / "models" / "numpy"
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+MODEL_PATH = MODELS_DIR / "mnist_numpy.onnx"
+METRICS_PATH = MODELS_DIR / "best_metrics.npz"
 CSV_DIR = ROOT / "data" / "MNIST_CSV"
 train_df = pd.read_csv(CSV_DIR / "mnist_train.csv")
 test_df = pd.read_csv(CSV_DIR / "mnist_test.csv")
@@ -29,14 +35,42 @@ hidden_size = 128
 learning_rate = 0.1
 nn = NeuralNetwork(hidden_size)
 
+def save_to_onnx(model_dict, path):
+    """Minimal ONNX export using ndonnx."""
+    W1, b1, W2, b2 = (
+        model_dict['W1'].astype(np.float32),
+        model_dict['b1'].astype(np.float32),
+        model_dict['W2'].astype(np.float32),
+        model_dict['b2'].astype(np.float32),
+    )
+
+    def predict(X):
+        X = ndx.asarray(X)
+        Z1 = X @ W1.T + b1.T
+        A1 = ndx.maximum(0, Z1)
+        Z2 = A1 @ W2.T + b2.T
+        # Z2 is a single sample vector, so take argmax over axis 0
+        return ndx.argmax(Z2, axis=0)
+
+    X = ndx.argument(shape=(784,), dtype=ndx.float32)
+    y = predict(X)
+    onnx_model = ndx.build({"X": X}, {"y": y})
+    onnx.save(onnx_model, str(path))
+
 # Training parameters
 epochs = 10
 batch_size = 64
 m = X_train.shape[1]
 num_batches = m // batch_size
 
-# Track best model
-best_accuracy = 0
+# Track best model (persisted globally)
+if METRICS_PATH.exists():
+    stored_metrics = np.load(METRICS_PATH)
+    best_accuracy = float(stored_metrics.get("best_accuracy", 0.0))
+    print(f"Loaded previous global best accuracy: {best_accuracy*100:.2f}%")
+else:
+    best_accuracy = 0.0
+run_best_accuracy = 0.0
 best_model = None
 
 # Training loop
@@ -97,6 +131,9 @@ for epoch in range(epochs):
     print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f} - Train Acc: {avg_train_acc*100:.2f}% - Test Loss: {test_loss:.4f} - Test Acc: {test_accuracy*100:.2f}% - Time: {epoch_time:.1f}s")
 
 
+    if test_accuracy > run_best_accuracy:
+        run_best_accuracy = test_accuracy
+
     if test_accuracy > best_accuracy:
         best_accuracy = test_accuracy
         best_model = {
@@ -105,6 +142,8 @@ for epoch in range(epochs):
             'W2': nn.W2.copy(),
             'b2': nn.b2.copy()
         }
-        print(f"→ New best model saved! (Accuracy: {test_accuracy*100:.2f}%)")
+        save_to_onnx(best_model, MODEL_PATH)
+        np.savez(METRICS_PATH, best_accuracy=best_accuracy)
+        print(f"New global best model saved! (Accuracy: {test_accuracy*100:.2f}%)")
 
-print(f"Training completed! Best accuracy: {best_accuracy*100:.2f}%")
+print(f"Training completed! Run best accuracy: {run_best_accuracy*100:.2f}% | Global best accuracy: {best_accuracy*100:.2f}%")
